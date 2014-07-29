@@ -35,6 +35,11 @@ data Thread = Thread ThreadId (IORef Bool)
 -- thread.
 create :: MonadBaseControl IO m => m () -> m Thread
 create a = uninterruptibleMask $ \restore -> do
+  -- Why use uninterruptibleMask instead of just mask? We're not using any
+  -- blocking operations so far, so there should be no difference. Still,
+  -- better be safe than sorry. Besides, we're using operations from
+  -- `MonadBaseControl` and related instances, and those could potentially
+  -- (though unlikely) block.
   stopRef <- liftBase $ newIORef False
   let
     go = do
