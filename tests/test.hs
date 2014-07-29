@@ -1,7 +1,9 @@
+{-# LANGUAGE ViewPatterns #-}
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Control.Immortal as Immortal
 import Control.Monad
+import Control.Exception
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad.Trans.State
@@ -54,6 +56,29 @@ main = defaultMain $ testGroup "Tests"
       threadDelay (5*10^5)
       v <- atomically $ readTVar tv
       v @?= 0
+
+  , testCase "onFinish detects normal exit" $ do
+      tv <- atomically $ newTVar Nothing
+      immortal <- Immortal.create $
+        Immortal.onFinish (\r -> atomically $ writeTVar tv (Just r)) $
+          liftIO delay
+      threadDelay (2*10^5)
+      v <- atomically $ readTVar tv
+      case v of
+        Just (Right ()) -> return ()
+        _ -> assertFailure $ "unexpected result: " ++ show v
+
+  , testCase "onFinish detects normal exit" $ do
+      tv <- atomically $ newTVar Nothing
+      immortal <- Immortal.create $
+        Immortal.onFinish (\r -> atomically $ writeTVar tv (Just r)) $ do
+          liftIO delay
+          error "bah!"
+      threadDelay (2*10^5)
+      v <- atomically $ readTVar tv
+      case v of
+        Just (Left (fromException -> Just (ErrorCall "bah!"))) -> return ()
+        _ -> assertFailure $ "unexpected result: " ++ show v
   ]
 
 keepTrue :: TVar Bool -> IO ()
