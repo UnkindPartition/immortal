@@ -7,6 +7,7 @@ module System.Immortal
   , create
   , stop
   , threadId
+  , onFinish
   ) where
 
 import Control.Exception.Lifted
@@ -56,3 +57,16 @@ stop (Thread pid stopRef) = do
 -- exception is not handled, the computation will be simply restarted.
 threadId :: Thread -> ThreadId
 threadId (Thread pid _) = pid
+
+-- | Run a callback every time the action finishes. This can be used e.g.
+-- to log exceptions or attempts to exit when such attempts are
+-- not expected. Example usage:
+--
+-- >Immortal.create $ Immortal.onFinish print myAction
+--
+-- This is nothing more than a simple wrapper around 'try'.
+onFinish
+  :: MonadBaseControl IO m
+  => (Either SomeException () -> m ())
+  -> m () -> m ()
+onFinish cb a = try a >>= cb
