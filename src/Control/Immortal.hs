@@ -1,8 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FlexibleContexts #-}
 -- | This module is designed to be imported qualified, e.g.
 --
--- >import qualified System.Immortal as Immortal
-module System.Immortal
+-- >import qualified Control.Immortal as Immortal
+module Control.Immortal
   ( Thread
   , create
   , stop

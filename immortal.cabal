@@ -17,7 +17,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     System.Immortal
+  exposed-modules:     Control.Immortal
   -- other-modules:       
   build-depends:
     base >=4.5 && <5,

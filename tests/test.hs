@@ -1,6 +1,6 @@
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified System.Immortal as Immortal
+import qualified Control.Immortal as Immortal
 import Control.Monad
 import Control.Concurrent
 import Control.Concurrent.STM
