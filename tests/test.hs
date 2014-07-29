@@ -4,8 +4,6 @@ import qualified Control.Immortal as Immortal
 import Control.Monad
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception
-import qualified Control.Exception.Lifted as Lifted
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 
