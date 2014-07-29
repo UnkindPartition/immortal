@@ -5,6 +5,7 @@
 module Control.Immortal
   ( Thread
   , create
+  , createWithLabel
   , stop
   , threadId
   , onFinish
@@ -16,6 +17,7 @@ import Control.Monad.Base
 import Control.Monad.Trans.Control
 import Control.Concurrent.Lifted
 import Data.IORef
+import GHC.Conc (labelThread)
 
 -- | Immortal thread identifier (including its underlying 'ThreadId')
 data Thread = Thread ThreadId (IORef Bool)
@@ -41,6 +43,14 @@ create a = uninterruptibleMask $ \restore -> do
       unless stopNow go
   pid <- fork go
   return $ Thread pid stopRef
+
+-- | Like 'create', but also apply the given label to the thread
+-- (using 'labelThread').
+createWithLabel :: MonadBaseControl IO m => String -> m () -> m Thread
+createWithLabel label a = do
+  thread <- create a
+  liftBase $ labelThread (threadId thread) label
+  return thread
 
 -- | Stop (kill) an immortal thread.
 --
