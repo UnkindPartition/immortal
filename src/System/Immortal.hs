@@ -23,6 +23,13 @@ data Thread = Thread ThreadId (IORef Bool)
 --
 -- If the computation ever finishes (either normally or due to an exception),
 -- it will be restarted (in the same thread).
+--
+-- The monadic «state» (captured by the 'MonadBaseControl' instance) will
+-- be preserved if the computation terminates normally, and reset when the
+-- exception is thrown, so be cautious when @m@ is stateful.
+-- It is completely safe, however, to instantiate @m@ with
+-- something like @ReaderT conf IO@ to pass configuration to the new
+-- thread.
 create :: MonadBaseControl IO m => m () -> m Thread
 create a = uninterruptibleMask $ \restore -> do
   stopRef <- liftBase $ newIORef False
