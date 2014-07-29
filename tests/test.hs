@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Control.Immortal as Immortal
@@ -9,6 +10,11 @@ import Control.Concurrent.STM
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 
+withImmortal :: IO () -> IO c -> IO c
+withImmortal comp inner =
+  bracket (Immortal.create comp) Immortal.stop $ const inner
+
+main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ testCase "is not killed by an exception" $ do
       tv <- atomically $ newTVar True
@@ -22,13 +28,12 @@ main = defaultMain $ testGroup "Tests"
 
   , testCase "never finishes" $ do
       tv <- atomically $ newTVar False
-      immortal <- Immortal.create $ keepTrue tv
-
-      replicateM_ 10 $ do
-        atomically $ writeTVar tv False
-        delay
-        v <- atomically $ readTVar tv
-        assertBool "Thread died" v
+      withImmortal (keepTrue tv) $
+        replicateM_ 10 $ do
+          atomically $ writeTVar tv False
+          delay
+          v <- atomically $ readTVar tv
+          assertBool "Thread died" v
 
   , testCase "can be stopped" $ do
       tv <- atomically $ newTVar True
@@ -42,43 +47,50 @@ main = defaultMain $ testGroup "Tests"
 
   , testCase "state is preserved when there are no exceptions" $ do
       tv <- atomically $ newTVar 0
-      immortal <- flip evalStateT 0 $ Immortal.create $ countToFive tv
-      delay
-      v <- atomically $ readTVar tv
-      v @?= 5
+      bracket (flip evalStateT 0 $ Immortal.create $ countToFive tv) Immortal.stop $ \_ -> do
+        delay
+        v <- atomically $ readTVar tv
+        v @?= 5
 
   , testCase "state is reset when there are exceptions" $ do
       tv <- atomically $ newTVar 0
-      immortal <- flip evalStateT 0 $ Immortal.create $ do
-        countToFive tv
-        liftIO delay
-        error "bah!"
-      threadDelay (5*10^5)
-      v <- atomically $ readTVar tv
-      v @?= 0
-
-  , testCase "onFinish detects normal exit" $ do
-      tv <- atomically $ newTVar Nothing
-      immortal <- Immortal.create $
-        Immortal.onFinish (\r -> atomically $ writeTVar tv (Just r)) $
-          liftIO delay
-      threadDelay (2*10^5)
-      v <- atomically $ readTVar tv
-      case v of
-        Just (Right ()) -> return ()
-        _ -> assertFailure $ "unexpected result: " ++ show v
-
-  , testCase "onFinish detects normal exit" $ do
-      tv <- atomically $ newTVar Nothing
-      immortal <- Immortal.create $
-        Immortal.onFinish (\r -> atomically $ writeTVar tv (Just r)) $ do
+      let
+        computation = do
+          countToFive tv
           liftIO delay
           error "bah!"
-      threadDelay (2*10^5)
-      v <- atomically $ readTVar tv
-      case v of
-        Just (Left (fromException -> Just (ErrorCall "bah!"))) -> return ()
-        _ -> assertFailure $ "unexpected result: " ++ show v
+      bracket (flip evalStateT 0 $ Immortal.create computation) Immortal.stop $ \_ -> do
+        threadDelay (5*10^5)
+        v <- atomically $ readTVar tv
+        v @?= 0
+
+  , testCase "onFinish detects normal exit" $ do
+      tv <- atomically $ newTVar Nothing
+      let
+        comp =
+          Immortal.onFinish
+            (\r -> atomically $ writeTVar tv (Just r))
+            (liftIO delay)
+      withImmortal comp $ do
+        threadDelay (2*10^5)
+        v <- atomically $ readTVar tv
+        case v of
+          Just (Right ()) -> return ()
+          _ -> assertFailure $ "unexpected result: " ++ show v
+
+  , testCase "onFinish detects normal exit" $ do
+      tv <- atomically $ newTVar Nothing
+      let
+        comp =
+          Immortal.onFinish
+            (\r -> atomically $ writeTVar tv (Just r))
+            (do liftIO delay; error "bah!")
+      withImmortal comp $ do
+        threadDelay (2*10^5)
+        v <- atomically $ readTVar tv
+        case v of
+          Just (Left (fromException -> Just (ErrorCall "bah!"))) -> return ()
+          _ -> assertFailure $ "unexpected result: " ++ show v
   ]
 
 keepTrue :: TVar Bool -> IO ()
