@@ -10,9 +10,12 @@ import Control.Concurrent.STM
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 
+-- Almost bracket, but we don't want to start a thread inside mask
+-- See http://ro-che.info/articles/2014-07-30-bracket.html
 withImmortal :: IO () -> IO c -> IO c
-withImmortal comp inner =
-  bracket (Immortal.create comp) Immortal.stop $ const inner
+withImmortal comp inner = do
+  thread <- Immortal.create comp
+  inner `finally` Immortal.stop thread
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
