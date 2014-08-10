@@ -11,7 +11,7 @@ import Control.Monad (forever)
 
 main = do
   -- start an immortal thread
-  _ <- Immortal.create $ do
+  _thread <- Immortal.create $ \ _thread -> do
     -- do stuff
 
   -- in the main thread, sleep until interrupted
