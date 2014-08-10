@@ -97,6 +97,39 @@ main = defaultMain $ testGroup "Tests"
         case v of
           Just (Left (fromException -> Just (ErrorCall "bah!"))) -> return ()
           _ -> assertFailure $ "unexpected result: " ++ show v
+
+  , testCase "mortalize allows thread to finish" $ do
+      tv <- atomically $ newTVar True
+      t <- Immortal.create $ const $ keepTrue tv
+      Immortal.mortalize t
+      atomically $ writeTVar tv False
+      delay
+      v1 <- atomically $ readTVar tv
+      -- thread was waiting for this; v1 should be True
+      v1 @?= True
+      -- since the thread was mortalized, it shouldn't be restarted
+      -- so try the same actions again
+      atomically $ writeTVar tv False
+      delay
+      v2 <- atomically $ readTVar tv
+      -- and we now should get False
+      v2 @?= False
+
+  , testCase "immortalize cancels mortalize" $ do
+      -- this is the copy of the previous test, only after mortalize we
+      -- immediately call immortalize
+      tv <- atomically $ newTVar True
+      t <- Immortal.create $ const $ keepTrue tv
+      Immortal.mortalize t
+      Immortal.immortalize t
+      atomically $ writeTVar tv False
+      delay
+      v1 <- atomically $ readTVar tv
+      v1 @?= True
+      atomically $ writeTVar tv False
+      delay
+      v2 <- atomically $ readTVar tv
+      v2 @?= True
   ]
 
 keepTrue :: TVar Bool -> IO ()
