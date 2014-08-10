@@ -14,14 +14,14 @@ import Control.Monad.IO.Class
 -- See http://ro-che.info/articles/2014-07-30-bracket.html
 withImmortal :: IO () -> IO c -> IO c
 withImmortal comp inner = do
-  thread <- Immortal.create comp
+  thread <- Immortal.create $ const comp
   inner `finally` Immortal.stop thread
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ testCase "is not killed by an exception" $ do
       tv <- atomically $ newTVar True
-      immortal <- Immortal.create $ keepTrue tv
+      immortal <- Immortal.create $ const $ keepTrue tv
 
       killThread (Immortal.threadId immortal)
       atomically $ writeTVar tv False
@@ -40,7 +40,7 @@ main = defaultMain $ testGroup "Tests"
 
   , testCase "can be stopped" $ do
       tv <- atomically $ newTVar True
-      immortal <- Immortal.create $ keepTrue tv
+      immortal <- Immortal.create $ const $ keepTrue tv
 
       Immortal.stop immortal
       atomically $ writeTVar tv False
@@ -50,10 +50,11 @@ main = defaultMain $ testGroup "Tests"
 
   , testCase "state is preserved when there are no exceptions" $ do
       tv <- atomically $ newTVar 0
-      bracket (flip evalStateT 0 $ Immortal.create $ countToFive tv) Immortal.stop $ \_ -> do
+      pid <- flip evalStateT 0 $ Immortal.create $ const $ countToFive tv
+      (do
         delay
         v <- atomically $ readTVar tv
-        v @?= 5
+        v @?= 5) `finally` Immortal.stop pid
 
   , testCase "state is reset when there are exceptions" $ do
       tv <- atomically $ newTVar 0
@@ -62,10 +63,12 @@ main = defaultMain $ testGroup "Tests"
           countToFive tv
           liftIO delay
           error "bah!"
-      bracket (flip evalStateT 0 $ Immortal.create computation) Immortal.stop $ \_ -> do
+      pid <- flip evalStateT 0 $ Immortal.create $ const computation
+      (do
         threadDelay (5*10^5)
         v <- atomically $ readTVar tv
-        v @?= 0
+        v @?= 0)
+        `finally` Immortal.stop pid
 
   , testCase "onFinish detects normal exit" $ do
       tv <- atomically $ newTVar Nothing
