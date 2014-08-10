@@ -6,6 +6,8 @@ module Control.Immortal
   ( Thread
   , create
   , createWithLabel
+  , mortalize
+  , immortalize
   , stop
   , threadId
   , onFinish
@@ -65,13 +67,31 @@ createWithLabel label a = do
   liftBase $ labelThread (threadId thread) label
   return thread
 
+-- | Make a thread mortal. Next time a mortal thread attempts to finish,
+-- nothing will prevent it from doing so.
+--
+-- Calling this on an already mortalized thread has no effect.
+mortalize :: Thread -> IO ()
+mortalize (Thread _ stopRef) = writeIORef stopRef True
+
+-- | If a thread was 'mortalize'd, this will make it immortal again. However,
+-- if it finished while being in the mortal state, it won't be resurrected.
+--
+-- Calling this on an immortal thread has no effect.
+immortalize :: Thread -> IO ()
+immortalize (Thread _ stopRef) = writeIORef stopRef False
+
 -- | Stop (kill) an immortal thread.
 --
--- This is the only way to really stop an immortal thread.
+-- This is equivalent to making it mortal, and then killing it with
+-- an exception.
+--
+-- Note that if the thread has installed its own exception handlers, it may
+-- not be killed immediately.
 stop :: Thread -> IO ()
-stop (Thread pid stopRef) = do
-  writeIORef stopRef True
-  killThread pid
+stop t = do
+  mortalize t
+  killThread (threadId t)
 
 -- | Get the 'ThreadId' of the immortal thread.
 --
