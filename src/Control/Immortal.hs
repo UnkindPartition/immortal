@@ -33,7 +33,10 @@ data Thread = Thread ThreadId (IORef Bool)
 -- It is completely safe, however, to instantiate @m@ with
 -- something like @ReaderT conf IO@ to pass configuration to the new
 -- thread.
-create :: MonadBaseControl IO m => m () -> m Thread
+create
+  :: MonadBaseControl IO m
+  => (Thread -> m ())
+  -> m Thread
 create a = uninterruptibleMask $ \restore -> do
   -- Why use uninterruptibleMask instead of just mask? We're not using any
   -- blocking operations so far, so there should be no difference. Still,
@@ -43,7 +46,12 @@ create a = uninterruptibleMask $ \restore -> do
   stopRef <- liftBase $ newIORef False
   let
     go = do
-      handle (\(_ :: SomeException) -> return ()) (restore a)
+      -- construct a thread object from within the thread itself
+      pid <- myThreadId
+      let thread = Thread pid stopRef
+
+      handle (\(_ :: SomeException) -> return ()) (restore $ a thread)
+
       stopNow <- liftBase $ readIORef stopRef
       unless stopNow go
   pid <- fork go
@@ -51,7 +59,7 @@ create a = uninterruptibleMask $ \restore -> do
 
 -- | Like 'create', but also apply the given label to the thread
 -- (using 'labelThread').
-createWithLabel :: MonadBaseControl IO m => String -> m () -> m Thread
+createWithLabel :: MonadBaseControl IO m => String -> (Thread -> m ()) -> m Thread
 createWithLabel label a = do
   thread <- create a
   liftBase $ labelThread (threadId thread) label
