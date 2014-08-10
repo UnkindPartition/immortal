@@ -130,6 +130,25 @@ main = defaultMain $ testGroup "Tests"
       delay
       v2 <- atomically $ readTVar tv
       v2 @?= True
+      Immortal.stop t
+
+  , testCase "cancelling from within the thread works" $ do
+      -- tv1 checks that the thread stopped running
+      -- tv2 checks that the exception was thrown
+      tv1 <- atomically $ newTVar False
+      tv2 <- atomically $ newTVar False
+      t <- Immortal.create $ \thread -> do
+        keepTrue tv1
+        Immortal.stop thread
+        atomically $ writeTVar tv1 True
+
+      delay
+      atomically $ writeTVar tv1 False
+      delay
+      v1 <- atomically $ readTVar tv1
+      v2 <- atomically $ readTVar tv2
+      v1 @?= False
+      v2 @?= False
   ]
 
 keepTrue :: TVar Bool -> IO ()
