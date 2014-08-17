@@ -10,7 +10,6 @@ import Control.Concurrent.STM
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import System.Timeout
-import GHC.Conc
 
 -- Almost bracket, but we don't want to start a thread inside mask
 -- See http://ro-che.info/articles/2014-07-30-bracket.html
@@ -29,7 +28,6 @@ main = defaultMain $ testGroup "Tests"
       atomically $ writeTVar tv False
       delay
       v <- atomically $ readTVar tv
-      print =<< threadStatus (Immortal.threadId immortal)
       assertBool "Thread died" v
 
   , testCase "never finishes" $ do
