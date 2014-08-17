@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+Version 0.2.1
+-------------
+
+Add `wait` and `wait-stm` functions
+
 Version 0.2
 -----------
 
