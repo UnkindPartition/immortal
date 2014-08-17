@@ -9,6 +9,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
+import System.Timeout
 
 -- Almost bracket, but we don't want to start a thread inside mask
 -- See http://ro-che.info/articles/2014-07-30-bracket.html
@@ -137,7 +138,7 @@ main = defaultMain $ testGroup "Tests"
       -- tv2 checks that the exception was thrown
       tv1 <- atomically $ newTVar False
       tv2 <- atomically $ newTVar False
-      t <- Immortal.create $ \thread -> do
+      _ <- Immortal.create $ \thread -> do
         keepTrue tv1
         Immortal.stop thread
         atomically $ writeTVar tv1 True
@@ -149,6 +150,13 @@ main = defaultMain $ testGroup "Tests"
       v2 <- atomically $ readTVar tv2
       v1 @?= False
       v2 @?= False
+
+  , testCase "wait is called after the thread is stopped" $ do
+      thread <- Immortal.create $ \_ -> threadDelay maxBound
+      _ <- forkIO $ threadDelay (10^4) >> Immortal.stop thread
+      result <- timeout (10^5) $ Immortal.wait thread
+
+      result @?= Just ()
   ]
 
 keepTrue :: TVar Bool -> IO ()
