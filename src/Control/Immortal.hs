@@ -119,7 +119,7 @@ threadId (Thread pid _ _) = pid
 -- to log exceptions or attempts to exit when such attempts are
 -- not expected. Example usage:
 --
--- >Immortal.create $ Immortal.onFinish print myAction
+-- >Immortal.create $ \_ -> Immortal.onFinish print myAction
 --
 -- This is nothing more than a simple wrapper around 'try'.
 onFinish
