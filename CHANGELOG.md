@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+Version 0.2.2
+-------------
+
+Add `onUnexpectedFinish`
+
 Version 0.2.1
 -------------
 
