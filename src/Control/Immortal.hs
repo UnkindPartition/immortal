@@ -13,6 +13,7 @@ module Control.Immortal
   , waitSTM
   , threadId
   , onFinish
+  , onUnexpectedFinish
   ) where
 
 import Control.Exception.Lifted
@@ -127,3 +128,20 @@ onFinish
   => (Either SomeException () -> m ())
   -> m () -> m ()
 onFinish cb a = try a >>= cb
+
+-- | Like 'onFinish', but the callback does not run when the thread is
+-- mortalized (i.e. when the exit is expected).
+--
+-- The 'Thread' argument is used to find out the mortality of the thread.
+onUnexpectedFinish
+  :: MonadBaseControl IO m
+  => Thread
+  -> (Either SomeException () -> m ())
+  -> m ()
+  -> m ()
+onUnexpectedFinish (Thread _ stopRef _) cb a = do
+  r <- try a
+  expected <- liftBase $ readIORef stopRef
+  if expected
+    then return ()
+    else cb r
