@@ -85,7 +85,7 @@ main = defaultMain $ testGroup "Tests"
           Just (Right ()) -> return ()
           _ -> assertFailure $ "unexpected result: " ++ show v
 
-  , testCase "onFinish detects normal exit" $ do
+  , testCase "onFinish detects abnormal exit" $ do
       tv <- atomically $ newTVar Nothing
       let
         comp =
