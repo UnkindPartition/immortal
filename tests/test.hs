@@ -18,6 +18,11 @@ withImmortal comp inner = do
   thread <- Immortal.create $ const comp
   inner `finally` Immortal.stop thread
 
+withImmortalThread :: (Immortal.Thread -> IO ()) -> (Immortal.Thread -> IO c) -> IO c
+withImmortalThread comp inner = do
+  thread <- Immortal.create comp
+  inner thread `finally` Immortal.stop thread
+
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ testCase "is not killed by an exception" $ do
@@ -85,7 +90,7 @@ main = defaultMain $ testGroup "Tests"
           Just (Right ()) -> return ()
           _ -> assertFailure $ "unexpected result: " ++ show v
 
-  , testCase "onFinish detects normal exit" $ do
+  , testCase "onFinish detects abnormal exit" $ do
       tv <- atomically $ newTVar Nothing
       let
         comp =
@@ -97,6 +102,34 @@ main = defaultMain $ testGroup "Tests"
         v <- atomically $ readTVar tv
         case v of
           Just (Left (fromException -> Just (ErrorCall "bah!"))) -> return ()
+          _ -> assertFailure $ "unexpected result: " ++ show v
+
+  , testCase "onUnexpectedFinish fires when thread is immortal" $ do
+      tv <- atomically $ newTVar Nothing
+      let
+        comp thread =
+          Immortal.onUnexpectedFinish thread
+            (\r -> atomically $ writeTVar tv (Just r))
+            (liftIO delay)
+      withImmortalThread comp $ \_ -> do
+        threadDelay (2*10^5)
+        v <- atomically $ readTVar tv
+        case v of
+          Just (Right ()) -> return ()
+          _ -> assertFailure $ "unexpected result: " ++ show v
+
+  , testCase "onUnexpectedFinish does not fire when thread is mortal" $ do
+      tv <- atomically $ newTVar Nothing
+      let
+        comp thread =
+          Immortal.onUnexpectedFinish thread
+            (\r -> atomically $ writeTVar tv (Just r))
+            (do Immortal.mortalize thread; liftIO delay)
+      withImmortalThread comp $ \_ -> do
+        threadDelay (2*10^5)
+        v <- atomically $ readTVar tv
+        case v of
+          Nothing -> return ()
           _ -> assertFailure $ "unexpected result: " ++ show v
 
   , testCase "mortalize allows thread to finish" $ do

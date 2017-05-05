@@ -13,6 +13,7 @@ module Control.Immortal
   , waitSTM
   , threadId
   , onFinish
+  , onUnexpectedFinish
   ) where
 
 import Control.Exception.Lifted
@@ -101,7 +102,7 @@ stop t = do
 
 -- | Wait for the thread to stop. Use 'stop' to stop the thread
 wait :: Thread -> IO ()
-wait = atomically . waitSTM  
+wait = atomically . waitSTM
 
 -- | An STM version of 'wait'
 waitSTM :: Thread -> STM ()
@@ -119,7 +120,7 @@ threadId (Thread pid _ _) = pid
 -- to log exceptions or attempts to exit when such attempts are
 -- not expected. Example usage:
 --
--- >Immortal.create $ Immortal.onFinish print myAction
+-- >Immortal.create $ \_ -> Immortal.onFinish print myAction
 --
 -- This is nothing more than a simple wrapper around 'try'.
 onFinish
@@ -127,3 +128,20 @@ onFinish
   => (Either SomeException () -> m ())
   -> m () -> m ()
 onFinish cb a = try a >>= cb
+
+-- | Like 'onFinish', but the callback does not run when the thread is
+-- mortalized (i.e. when the exit is expected).
+--
+-- The 'Thread' argument is used to find out the mortality of the thread.
+onUnexpectedFinish
+  :: MonadBaseControl IO m
+  => Thread
+  -> (Either SomeException () -> m ())
+  -> m ()
+  -> m ()
+onUnexpectedFinish (Thread _ stopRef _) cb a = do
+  r <- try a
+  expected <- liftBase $ readIORef stopRef
+  if expected
+    then return ()
+    else cb r
