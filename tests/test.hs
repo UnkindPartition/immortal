@@ -183,12 +183,12 @@ main = defaultMain $ testGroup "Tests"
       v2 <- atomically $ readTVar tv2
       v1 @?= False
       v2 @?= False
-      
+
   , testCase "wait is called after the thread is stopped" $ do
       thread <- Immortal.create $ \_ -> threadDelay maxBound
       _ <- forkIO $ threadDelay (10^4) >> Immortal.stop thread
       result <- timeout (10^5) $ Immortal.wait thread
-    
+
       result @?= Just ()
 
   , testCase "wait waits long enough" $ do
