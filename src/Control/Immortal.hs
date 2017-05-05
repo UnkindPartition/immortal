@@ -59,7 +59,7 @@ create a = uninterruptibleMask $ \restore -> do
       handle (\(_ :: SomeException) -> return ()) (restore $ a thread)
 
       stopNow <- liftBase $ readIORef stopRef
-      if stopNow then 
+      if stopNow then
         liftBase $ atomically $ writeTVar finishedRef True
       else
         go
