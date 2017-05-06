@@ -190,6 +190,17 @@ main = defaultMain $ testGroup "Tests"
       result <- timeout (10^5) $ Immortal.wait thread
 
       result @?= Just ()
+
+  , testCase "wait waits long enough" $ do
+      tv <- atomically $ newTVar True
+      thread <- Immortal.create $ \t -> do
+        delay
+        atomically $ writeTVar tv False
+        Immortal.stop t
+      _ <- Immortal.wait thread
+
+      v <- atomically $ readTVar tv
+      v @?= False
   ]
 
 keepTrue :: TVar Bool -> IO ()
