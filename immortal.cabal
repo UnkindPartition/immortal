@@ -4,7 +4,10 @@
 name:                immortal
 version:             0.2.2
 synopsis:            Spawn threads that never die (unless told to do so)
--- description:         
+description:         A small library to create threads that never die.
+
+                     This is useful e.g. for writing servers.
+
 homepage:            https://github.com/feuerbach/immortal
 license:             MIT
 license-file:        LICENSE
