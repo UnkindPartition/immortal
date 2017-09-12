@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+Version 0.2.2.1
+---------------
+
+Fix the README
+
 Version 0.2.2
 -------------
 
