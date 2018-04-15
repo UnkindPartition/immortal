@@ -7,7 +7,6 @@ import Control.Monad
 import Control.Exception
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import System.Timeout
 
@@ -53,28 +52,6 @@ main = defaultMain $ testGroup "Tests"
       delay
       v <- atomically $ readTVar tv
       assertBool "Thread did not stop" (not v)
-
-  , testCase "state is preserved when there are no exceptions" $ do
-      tv <- atomically $ newTVar 0
-      pid <- flip evalStateT 0 $ Immortal.create $ const $ countToFive tv
-      (do
-        delay
-        v <- atomically $ readTVar tv
-        v @?= 5) `finally` Immortal.stop pid
-
-  , testCase "state is reset when there are exceptions" $ do
-      tv <- atomically $ newTVar 0
-      let
-        computation = do
-          countToFive tv
-          liftIO delay
-          error "bah!"
-      pid <- flip evalStateT 0 $ Immortal.create $ const computation
-      (do
-        threadDelay (5*10^5)
-        v <- atomically $ readTVar tv
-        v @?= 0)
-        `finally` Immortal.stop pid
 
   , testCase "onFinish detects normal exit" $ do
       tv <- atomically $ newTVar Nothing
@@ -214,11 +191,3 @@ sleep = threadDelay (60 * 10^6) -- 1 min
 
 delay :: IO ()
 delay = threadDelay (10^5) -- 0.1 s
-
-countToFive :: TVar Int -> StateT Int IO ()
-countToFive tv = do
-  n <- get
-  liftIO $ atomically $ writeTVar tv n
-  if n == 5
-    then liftIO sleep
-    else put $! n+1

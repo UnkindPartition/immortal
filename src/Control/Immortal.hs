@@ -16,13 +16,12 @@ module Control.Immortal
   , onUnexpectedFinish
   ) where
 
-import Control.Exception.Lifted
-import Control.Monad.Base
-import Control.Monad.Trans.Control
-import Control.Concurrent.Lifted
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Exception
+import Control.Monad.IO.Unlift
 import Data.IORef
 import GHC.Conc (labelThread)
-import Control.Concurrent.STM
 
 -- | Immortal thread identifier (including its underlying 'ThreadId')
 data Thread = Thread ThreadId (IORef Bool) (TVar Bool)
@@ -31,47 +30,38 @@ data Thread = Thread ThreadId (IORef Bool) (TVar Bool)
 --
 -- If the computation ever finishes (either normally or due to an exception),
 -- it will be restarted (in the same thread).
---
--- The monadic «state» (captured by the 'MonadBaseControl' instance) will
--- be preserved if the computation terminates normally, and reset when the
--- exception is thrown, so be cautious when @m@ is stateful.
--- It is completely safe, however, to instantiate @m@ with
--- something like @ReaderT conf IO@ to pass configuration to the new
--- thread.
 create
-  :: MonadBaseControl IO m
+  :: MonadUnliftIO m
   => (Thread -> m ())
   -> m Thread
-create a = uninterruptibleMask $ \restore -> do
+create a = withRunInIO $ \run -> uninterruptibleMask $ \restore -> do
   -- Why use uninterruptibleMask instead of just mask? We're not using any
   -- blocking operations so far, so there should be no difference. Still,
-  -- better be safe than sorry. Besides, we're using operations from
-  -- `MonadBaseControl` and related instances, and those could potentially
-  -- (though unlikely) block.
-  stopRef     <- liftBase $ newIORef  False
-  finishedRef <- liftBase $ newTVarIO False
+  -- better be safe than sorry.
+  stopRef     <- newIORef  False
+  finishedRef <- newTVarIO False
   let
     go = do
       -- construct a thread object from within the thread itself
       pid <- myThreadId
       let thread = Thread pid stopRef finishedRef
 
-      handle (\(_ :: SomeException) -> return ()) (restore $ a thread)
+      handle (\(_ :: SomeException) -> return ()) (restore $ run $ a thread)
 
-      stopNow <- liftBase $ readIORef stopRef
+      stopNow <- readIORef stopRef
       if stopNow then
-        liftBase $ atomically $ writeTVar finishedRef True
+        atomically $ writeTVar finishedRef True
       else
         go
-  pid <- fork go
+  pid <- forkIO go
   return $ Thread pid stopRef finishedRef
 
 -- | Like 'create', but also apply the given label to the thread
 -- (using 'labelThread').
-createWithLabel :: MonadBaseControl IO m => String -> (Thread -> m ()) -> m Thread
+createWithLabel :: MonadUnliftIO m => String -> (Thread -> m ()) -> m Thread
 createWithLabel label a = do
   thread <- create a
-  liftBase $ labelThread (threadId thread) label
+  liftIO $ labelThread (threadId thread) label
   return thread
 
 -- | Make a thread mortal. Next time a mortal thread attempts to finish,
@@ -124,24 +114,24 @@ threadId (Thread pid _ _) = pid
 --
 -- This is nothing more than a simple wrapper around 'try'.
 onFinish
-  :: MonadBaseControl IO m
+  :: MonadUnliftIO m
   => (Either SomeException () -> m ())
   -> m () -> m ()
-onFinish cb a = try a >>= cb
+onFinish cb a = withRunInIO $ \run -> try (run a) >>= run . cb
 
 -- | Like 'onFinish', but the callback does not run when the thread is
 -- mortalized (i.e. when the exit is expected).
 --
 -- The 'Thread' argument is used to find out the mortality of the thread.
 onUnexpectedFinish
-  :: MonadBaseControl IO m
+  :: MonadUnliftIO m
   => Thread
   -> (Either SomeException () -> m ())
   -> m ()
   -> m ()
-onUnexpectedFinish (Thread _ stopRef _) cb a = do
-  r <- try a
-  expected <- liftBase $ readIORef stopRef
+onUnexpectedFinish (Thread _ stopRef _) cb a = withRunInIO $ \run -> do
+  r <- try $ run a
+  expected <- readIORef stopRef
   if expected
     then return ()
-    else cb r
+    else run $ cb r
