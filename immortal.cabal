@@ -1,5 +1,5 @@
 name:                immortal
-version:             0.2.2.1
+version:             0.3
 synopsis:            Spawn threads that never die (unless told to do so)
 description:         A small library to create threads that never die.
 

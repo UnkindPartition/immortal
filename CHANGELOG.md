@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+Version 0.3
+-----------
+
+Replace monad-control with unliftio-core.
+As a result, immortal will no longer work with stateful monads like StateT,
+which is considered a feature.
+
 Version 0.2.2.1
 ---------------
 
